@@ -1,0 +1,145 @@
+Please analyze the provided image and perform the following tasks:
+
+Identify All Login Input Fields:
+
+Locate all input fields related to login (e.g., username, email, password fields).
+For each input field found:
+Provide a brief description (e.g., "Username input field", "Password input field").
+Provide its bounding box coordinates.
+Identify All Login Buttons and Links:
+
+Locate all buttons and links used to submit login information or navigate to a login page.
+For each button or link found:
+Provide a brief description (e.g., "Button labeled 'Login'", "Link with text 'Sign In'").
+Provide its bounding box coordinates.
+Identify All Relevant Dropdowns Near Login Elements:
+
+Locate all dropdown menus near the login input fields or buttons that are related to login (e.g., account type selection).
+For each dropdown found:
+Provide a brief description (e.g., "Dropdown menu for selecting account type").
+Provide its bounding box coordinates.
+Focus Exclusively on Login Elements:
+
+Only identify elements that are directly related to login functionality: input fields, buttons, links, and relevant dropdowns.
+Do not include any other elements or additional information.
+
+Avoid Duplicate Entries:
+
+Report each element only once, even if it appears multiple times or is prominent in the image.
+
+Do not repeat elements or their descriptions.
+Output Format:
+
+Element Type: [Input Field / Button / Link / Dropdown]
+Description: [Brief description]
+Bounding Box Coordinates: (x1, y1, x2, y2)
+Guidelines:
+
+Be Thorough but Concise: Ensure that all unique login-related elements are identified without duplication.
+Accuracy: Provide precise bounding box coordinates for each element.
+Clarity: Use clear and concise language in your descriptions.
+Exclusivity: Do not include any elements that are not directly related to login functionality.
+No Additional Commentary: Provide only the requested information without extra explanations.
+
+
+
+
+Please analyze the provided image and perform the following tasks:
+
+Identify All Login Buttons:
+
+Locate all buttons on the page that are used to submit login information or navigate to a login page.
+For each login button found:
+Provide a brief description (e.g., "Button labeled 'Login'", "Button with text 'Sign In'").
+Provide its bounding box coordinates.
+Identify Dropdowns Near Each Login Button:
+
+For each login button identified in Step 1, locate any dropdown menus that are nearby and related to login functionality (e.g., account type selection).
+For each relevant dropdown found:
+Provide a brief description (e.g., "Dropdown menu for selecting account type").
+Provide its bounding box coordinates.
+Ensure No Elements Are Missed:
+
+Thoroughly scan the image to make sure all login buttons and their nearby dropdowns are identified.
+Be careful not to omit any login buttons, even if there are multiple on the page.
+Avoid Duplicate Entries:
+
+Report each unique element only once, even if it appears multiple times in the image.
+Do not repeat elements or their descriptions.
+Focus Exclusively on Login Buttons and Nearby Dropdowns:
+
+Only identify login buttons and dropdowns near them.
+Do not include any other elements or input fields.
+Output Format:
+
+Element Type: [Login Button / Dropdown]
+Description: [Brief description]
+Bounding Box Coordinates: (x1, y1, x2, y2)
+Guidelines:
+
+Be Comprehensive: Ensure that all login buttons and their nearby dropdowns are identified.
+Accuracy: Provide precise bounding box coordinates for each element.
+Clarity: Use clear and concise language in your descriptions.
+Exclusivity: Do not include any elements that are not login buttons or dropdowns near them.
+No Additional Commentary: Provide only the requested information without extra explanations.
+
+
+Please analyze the provided image and perform the following task:
+
+Identify All Login Buttons:
+
+Locate all buttons on the page that are used to submit login information or navigate to a login page.
+For each login button found:
+Provide a brief description (e.g., "Button labeled 'Login'", "Button with text 'Sign In'", "Icon button with a lock symbol").
+Provide its bounding box coordinates.
+Output Format:
+
+Element Type: Login Button
+Description: [Brief description]
+Bounding Box Coordinates: (x1, y1, x2, y2)
+Guidelines:
+
+Be Thorough: Ensure that all login buttons are identified, even if there are multiple on the page.
+Avoid Duplicates: Report each unique login button only once.
+Accuracy: Provide precise bounding box coordinates for each button.
+Clarity: Use clear and concise language in your descriptions.
+Exclusivity: Do not include any other elements or input fields.
+No Additional Commentary: Provide only the requested information without extra explanations.
+
+
+
+// LATEST PROMPTS
+// COOKIE PROMPT
+Analyze the provided image and determine if there are any visible popups or cookie banners.
+If a popup is detected, where do I click to close it.
+If a cookie banner is detected return the position of the large Accept button.
+If no popup or cookie banner exists Output: "No popups found".
+Output Format:
+
+Element Type: [Popup/Cookie Banner]
+Description: [Brief description]
+Bounding Box Coordinates: (x1, y1, x2, y2)
+Guidelines:
+- Only focus on popups or cookie banners.
+- Provide precise bounding box coordinates.
+
+// LOGIN BUTTON PROMPT
+Analyze the provided image and identify where do I click to access the login page.
+Output Format:
+
+Element Type: Login Button
+Description: [Brief description]
+Bounding Box Coordinates: (x1, y1, x2, y2)
+Guidelines:
+- Only focus on the element that takes me to the login page.
+- Provide precise bounding box coordinates.
+
+
+After the previous click I get to the following page. Given the provided image of this page, where do I click now to get to the login page.
+Output Format:
+Element Type: Login Button
+Description: [Brief description]
+Bounding Box Coordinates: (x1, y1, x2, y2)
+Guidelines:
+- Only focus on the element necessary to proceed to the login page.
+- Provide precise bounding box coordinates.

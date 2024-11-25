@@ -1,0 +1,22 @@
+[
+  {
+    "step": 1,
+    "clickPosition": {
+      "x": 358,
+      "y": 22
+    },
+    "elementHTML": "<strong>Online Banking Login</strong>",
+    "screenshot": "/u1/a8tariq/OS-ATLAS/screenshot_flows/firstjacksonbank_com/page_1.png",
+    "url": "https://firstjacksonbank.com/"
+  },
+  {
+    "step": 2,
+    "clickPosition": {
+      "x": 780,
+      "y": 557
+    },
+    "elementHTML": "<bannoweb-login-steps>  </bannoweb-login-steps>",
+    "screenshot": "/u1/a8tariq/OS-ATLAS/screenshot_flows/firstjacksonbank_com/page_2.png",
+    "url": "https://my.firstjacksonbank.com/login?_gl=1*qcg6gf*_ga*MTY1NDExNzc0LjE3MzIyOTMwMjM.*_ga_GMJ07JRVD5*MTczMjI5MzAyMi4xLjAuMTczMjI5MzAyMi4wLjAuMA.."
+  }
+]
