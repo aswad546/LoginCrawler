@@ -78,7 +78,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
                         """
 Analyze the provided image and determine if there are any visible popups or cookie banners.
 If a popup is detected, where do I click to close it.
-If a cookie banner is detected return the position of the large Accept button.
+If a cookie banner is detected return the position of the large Accept button inside a colored shape, for example oval or square.
 If no popup or cookie banner exists Output: "No popups found".
 Output Format:
 
