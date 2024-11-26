@@ -55,69 +55,33 @@ async function getSelectOptions(page) {
   const allSelectOptions = [];
 
   for (let select of selectElements) {
-    const options = await page.evaluate((select) => {
+    const options = await select.evaluate((select) => {
       return Array.from(select.options).map((option) => option.value);
-    }, select);
-    allSelectOptions.push({ element: select, options });
+    });
+    allSelectOptions.push(options);
   }
 
   return allSelectOptions;
 }
 
-// Flatten the selectOptions array to make exploration easier
-function flattenSelectOptions(selectOptions) {
-  return selectOptions.reduce((acc, { element, options }) => {
-    options.forEach((option) => {
-      acc.push({ element, value: option });
-    });
-    return acc;
-  }, []);
-}
+// Function to generate all combinations of select options
+function generateOptionCombinations(optionsArray) {
+  const combinations = [];
 
-// Recursive function to explore all flows for different select options
-async function exploreFlows(page, url, client, selectOptions, parentDir, flowIndex = 0, screenshotIndex = 1, clickCount = 0) {
-  if (clickCount >= 10) {
-    return;
-  }
+  const helper = (currentCombination, depth) => {
+    if (depth === optionsArray.length) {
+      combinations.push([...currentCombination]);
+      return;
+    }
+    for (let option of optionsArray[depth]) {
+      currentCombination.push(option);
+      helper(currentCombination, depth + 1);
+      currentCombination.pop();
+    }
+  };
 
-  // Flatten the selectOptions array
-  const flattenedOptions = flattenSelectOptions(selectOptions);
-
-  if (flowIndex >= flattenedOptions.length) {
-    // Base case: No more select elements to explore, perform the remaining actions
-    return await continueFlow(page, url, client, parentDir, flowIndex, screenshotIndex, clickCount);
-  }
-
-  // Create a new directory for this flow inside the parent directory
-  const flowDirName = generateFlowDirectoryName(flowIndex);
-  const flowDir = path.join(parentDir, flowDirName);
-  if (!fs.existsSync(flowDir)) {
-    fs.mkdirSync(flowDir);
-  }
-
-  const { element, value } = flattenedOptions[flowIndex];
-
-  // Set the value of the current select element
-  await page.evaluate((select, value) => {
-    select.value = value;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-  }, element, value);
-
-  console.log(`Selected value: ${value} for flow index ${flowIndex}`);
-
-  // Recursive call to explore the next select element
-  await exploreFlows(page, url, client, selectOptions, parentDir, flowIndex + 1, screenshotIndex, clickCount);
-
-  // After setting the value, continue to the next page if navigation occurs
-  try {
-    await page.waitForNavigation({ timeout: 5000 });
-    console.log('Navigation event detected and finished.');
-    // After navigation, get new select options and continue exploration
-    const newSelectOptions = await getSelectOptions(page);
-    await exploreFlows(page, url, client, newSelectOptions, parentDir, 0, screenshotIndex, clickCount);
-  } catch (error) {
-    console.log('No navigation event detected.(explore flows)');
-  }
+  helper([], 0);
+  return combinations;
 }
 
 async function fillInputFields(page) {
@@ -158,8 +122,83 @@ async function fillInputFields(page) {
   await sleep(1000);
 }
 
-// Function to continue with actions after exploring select elements
-async function continueFlow(page, url, client, parentDir, flowIndex, screenshotIndex, clickCount) {
+// Function to detect navigation or new tab
+async function detectNavigationOrNewTab(page) {
+  const timeout = 5000;
+  const browser = page.browser();
+
+  return Promise.race([
+    page.waitForNavigation({ timeout }).then(() => {
+      console.log('Navigation detected.');
+      return page;
+    }).catch(() => null),
+    new Promise(resolve => {
+      const listener = async target => {
+        if (target.opener() === page.target()) {
+          const newPage = await target.page();
+          await newPage.bringToFront();
+          console.log('New tab detected.');
+          browser.off('targetcreated', listener);
+          resolve(newPage);
+        }
+      };
+      browser.on('targetcreated', listener);
+      setTimeout(() => {
+        browser.off('targetcreated', listener);
+        resolve(null);
+      }, timeout);
+    })
+  ]);
+}
+
+// Function to perform the flow for a given combination of select options
+async function performFlow(browser, url, parentDir, client, selectCombination, flowIndex, clickLimit) {
+  let page = await browser.newPage();
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+  await page.setViewport({ width: 1280, height: 800 });
+  await page.evaluateOnNewDocument(() => {
+    delete navigator.__proto__.webdriver;
+  });
+  await page.setDefaultNavigationTimeout(60000);
+
+  try {
+    await page.goto(url, { waitUntil: 'load' });
+    await sleep(Math.floor(Math.random() * 2000) + 1000);
+
+    // Apply the select options
+    const selectElements = await page.$$('select');
+    for (let i = 0; i < selectCombination.length; i++) {
+      const selectElement = selectElements[i];
+      const value = selectCombination[i];
+
+      await selectElement.evaluate((select, value) => {
+        select.value = value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value);
+
+      console.log(`Set select index ${i} to value ${value}`);
+
+      // Wait for any potential navigation
+      const newPage = await detectNavigationOrNewTab(page);
+      if (newPage && newPage !== page) {
+        console.log('Navigation or new tab detected after selecting option.');
+        page = newPage;
+        await page.bringToFront();
+      }
+    }
+
+    // Proceed with the flow
+    await continueFlow(page, url, client, parentDir, flowIndex, 1, 0, clickLimit);
+
+  } catch (error) {
+    console.error('Error during flow:', error);
+  } finally {
+    await page.close();
+  }
+}
+
+// Function to continue with actions after selecting options
+async function continueFlow(page, url, client, parentDir, flowIndex, screenshotIndex, clickCount, clickLimit) {
   const actions = []; // To store the action history
   const flowDirName = generateFlowDirectoryName(flowIndex);
   const flowDir = path.join(parentDir, flowDirName);
@@ -183,7 +222,7 @@ async function continueFlow(page, url, client, parentDir, flowIndex, screenshotI
   let previousElementHTML = null;
 
   // Main loop to interact with elements based on server response
-  while (clickCount < 10) {
+  while (clickCount < clickLimit) {
     client.write(`${screenshotPath}\n`);
 
     // Wait for response from the server
@@ -233,21 +272,13 @@ async function continueFlow(page, url, client, parentDir, flowIndex, screenshotI
 
     clickCount++;
 
-    // Check if a new tab was opened
-    const newPageTarget = await page.browser().waitForTarget(target => target.opener() === page.target(), { timeout: 5000 }).catch(() => null);
-    if (newPageTarget) {
-      console.log('New tab opened, switching to new tab');
-      page = await newPageTarget.page();
+    // Check for navigation or new tab
+    const newPage = await detectNavigationOrNewTab(page);
+    if (newPage && newPage !== page) {
+      console.log('New tab or navigation detected after click, switching to new page');
+      page = newPage;
       await page.bringToFront();
-      console.log(`Switched to new page with URL: ${await page.url()}`);
       await page.setDefaultNavigationTimeout(60000);
-    }
-
-    try {
-      await page.waitForNavigation({ timeout: 5000 });
-      console.log('Navigation event detected and finished.');
-    } catch (error) {
-      console.log('No navigation event detected.');
     }
 
     ({ screenshotPath, currentUrl } = await takeScreenshot());
@@ -259,7 +290,7 @@ async function continueFlow(page, url, client, parentDir, flowIndex, screenshotI
   console.log(`Actions saved to: ${outputJSONPath}`);
 }
 
-// Function to take screenshot and connect to socket
+// Function to run the crawler
 async function runCrawler(url) {
   const HOST = 'localhost';
   const PORT = 5000;
@@ -291,25 +322,31 @@ async function runCrawler(url) {
       ],
     });
 
-    let page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36');
-    await page.setViewport({ width: 1280, height: 800 });
-    await page.evaluateOnNewDocument(() => {
-      delete navigator.__proto__.webdriver;
-    });
-
-    await page.setDefaultNavigationTimeout(60000);
-    await page.goto(url, { waitUntil: 'load' });
-    await sleep(Math.floor(Math.random() * 2000) + 1000);
-
     // Create a parent directory for the URL
     const parentDir = path.join(__dirname, 'screenshot_flows', generateParentDirectoryName(url));
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
 
+    // Open a page to get the select options
+    let page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'load' });
+    await sleep(Math.floor(Math.random() * 2000) + 1000);
+
     const selectOptions = await getSelectOptions(page);
-    await exploreFlows(page, url, client, selectOptions, parentDir, 0, 1, 0);
+    await page.close();
+
+    // Generate all combinations of select options
+    const optionsArray = selectOptions;
+    const combinations = generateOptionCombinations(optionsArray);
+    console.log(`Generated ${combinations.length} combinations of select options.`);
+
+    // Iterate over each combination and perform the flow
+    for (let i = 0; i < combinations.length; i++) {
+      const selectCombination = combinations[i];
+      console.log(`Starting flow ${i} with select options: ${selectCombination}`);
+      await performFlow(browser, url, parentDir, client, selectCombination, i, 10);
+    }
 
     await browser.close();
   } catch (error) {
@@ -322,8 +359,47 @@ async function runCrawler(url) {
   }
 }
 
-async function main() {
-  await runCrawler("https://www.bankofhope.com");
+const fs = require('fs');
+const path = require('path');
+
+// Function to read URLs from the file and add "http://" if not present
+function getUrlsFromFile(filePath) {
+  try {
+    const urls = fs.readFileSync(filePath, 'utf-8')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(url => (url.startsWith('http://') || url.startsWith('https://') ? url : `http://${url}`));
+    return urls;
+  } catch (error) {
+    console.error(`Error reading file: ${error.message}`);
+    return [];
+  }
 }
+
+// Main function to process URLs
+async function main() {
+  const filePath = path.join(__dirname, 'urls.txt'); // Path to the file
+  const urls = getUrlsFromFile(filePath);
+
+  if (urls.length === 0) {
+    console.log('No URLs found in the file.');
+    return;
+  }
+
+  console.log(`Found ${urls.length} URLs. Starting crawler...`);
+
+  for (const url of urls) {
+    console.log(`Processing URL: ${url}`);
+    try {
+      await runCrawler(url); // Call the crawler for each URL
+    } catch (error) {
+      console.error(`Error processing URL ${url}: ${error.message}`);
+    }
+  }
+
+  console.log('Finished processing all URLs.');
+}
+
 
 main();
