@@ -23,6 +23,10 @@ function generateFileName(index) {
   return `page_${index}.png`;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Function to overlay click position on the image using sharp
 async function overlayClickPosition(inputImagePath, outputImagePath, x, y) {
   const marker = Buffer.from(`
@@ -45,9 +49,7 @@ async function overlayClickPosition(inputImagePath, outputImagePath, x, y) {
   }
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+
 
 // Function to get all select elements and their options
 async function getSelectOptions(page) {
@@ -105,12 +107,12 @@ async function fillInputFields(page) {
           input.type('aa', { delay: 100 }),
           new Promise((_, reject) => setTimeout(() => reject('Timeout'), 3000)),
         ]);
-        console.log('Successfully filled input field');
+        // console.log('Successfully filled input field');
       } else {
-        console.log('Skipping non-interactable input field.');
+        // console.log('Skipping non-interactable input field.');
       }
     } catch (e) {
-      console.log('Skipping input field due to timeout or other error:', e.message);
+      // console.log('Skipping input field due to timeout or other error:', e.message);
     }
   }
 
@@ -128,12 +130,15 @@ async function detectNavigationOrNewTab(page) {
   const browser = page.browser();
 
   return Promise.race([
-    page.waitForNavigation({ timeout }).then(() => {
-      console.log('Navigation detected.');
-      return page;
-    }).catch(() => null),
-    new Promise(resolve => {
-      const listener = async target => {
+    page
+      .waitForNavigation({ timeout })
+      .then(() => {
+        console.log('Navigation detected.');
+        return page;
+      })
+      .catch(() => null),
+    new Promise((resolve) => {
+      const listener = async (target) => {
         if (target.opener() === page.target()) {
           const newPage = await target.page();
           await newPage.bringToFront();
@@ -147,7 +152,7 @@ async function detectNavigationOrNewTab(page) {
         browser.off('targetcreated', listener);
         resolve(null);
       }, timeout);
-    })
+    }),
   ]);
 }
 
@@ -162,7 +167,7 @@ async function performFlow(browser, url, parentDir, client, selectCombination, f
   await page.setDefaultNavigationTimeout(60000);
 
   try {
-    await page.goto(url, { waitUntil: 'load' });
+    await page.goto(url, {timeout: 60000, waitUntil: 'load' });
     await sleep(Math.floor(Math.random() * 2000) + 1000);
 
     // Apply the select options
@@ -182,6 +187,7 @@ async function performFlow(browser, url, parentDir, client, selectCombination, f
       const newPage = await detectNavigationOrNewTab(page);
       if (newPage && newPage !== page) {
         console.log('Navigation or new tab detected after selecting option.');
+        await page.close(); // Close the old page
         page = newPage;
         await page.bringToFront();
       }
@@ -189,11 +195,12 @@ async function performFlow(browser, url, parentDir, client, selectCombination, f
 
     // Proceed with the flow
     await continueFlow(page, url, client, parentDir, flowIndex, 1, 0, clickLimit);
-
   } catch (error) {
     console.error('Error during flow:', error);
   } finally {
-    await page.close();
+    if (page && !page.isClosed()) {
+      await page.close();
+    }
   }
 }
 
@@ -217,7 +224,7 @@ async function continueFlow(page, url, client, parentDir, flowIndex, screenshotI
     screenshotIndex++;
     return { screenshotPath, currentUrl };
   };
-
+  console.log('Filled input fields now taking screenshot')
   let { screenshotPath, currentUrl } = await takeScreenshot();
   let previousElementHTML = null;
 
@@ -227,17 +234,23 @@ async function continueFlow(page, url, client, parentDir, flowIndex, screenshotI
 
     // Wait for response from the server
     let clickPosition = await new Promise((resolve) => {
-      client.once('data', (data) => {
+      const dataListener = (data) => {
         console.log(`Received from server: ${data}`);
+        client.removeListener('data', dataListener); // Clean up listener
         resolve(data.toString().trim());
-      });
+      };
+      client.on('data', dataListener);
     });
 
     const match = clickPosition.match(/Click Point:\s*(\d+),\s*(\d+)/);
     if (clickPosition === 'No login button detected') {
       console.log('No login button detected');
       break;
-    } else if (!match) {
+    } else if (clickPosition == 'No popups found') {
+      console.log('No popups found')
+      continue;
+    }
+    else if (!match) {
       console.error(`Invalid data received from socket: ${clickPosition}`);
       throw new Error(`Invalid click position: ${clickPosition}`);
     }
@@ -250,6 +263,7 @@ async function continueFlow(page, url, client, parentDir, flowIndex, screenshotI
     }, { x, y });
 
     if (currentElementHTML === null || currentElementHTML === previousElementHTML) {
+      console.log(currentElementHTML)
       console.log('No element found or repeated element at the click position.');
       break;
     }
@@ -276,11 +290,14 @@ async function continueFlow(page, url, client, parentDir, flowIndex, screenshotI
     const newPage = await detectNavigationOrNewTab(page);
     if (newPage && newPage !== page) {
       console.log('New tab or navigation detected after click, switching to new page');
+      await page.close(); // Close the old page
       page = newPage;
       await page.bringToFront();
       await page.setDefaultNavigationTimeout(60000);
     }
 
+    await fillInputFields(page);
+    await sleep(4000);
     ({ screenshotPath, currentUrl } = await takeScreenshot());
   }
 
@@ -295,6 +312,7 @@ async function runCrawler(url) {
   const HOST = 'localhost';
   const PORT = 5000;
   let client;
+  let browser;
 
   try {
     // Start socket connection
@@ -311,7 +329,7 @@ async function runCrawler(url) {
       });
     });
 
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       headless: true,
       args: [
         '--no-sandbox',
@@ -347,29 +365,30 @@ async function runCrawler(url) {
       console.log(`Starting flow ${i} with select options: ${selectCombination}`);
       await performFlow(browser, url, parentDir, client, selectCombination, i, 10);
     }
-
-    await browser.close();
   } catch (error) {
     console.error('Error:', error);
   } finally {
+    if (browser) {
+      await browser.close();
+      console.log('Browser closed');
+    }
     if (client) {
       client.end();
+      client.destroy(); // Ensure the socket is fully closed
       console.log('Socket connection closed');
     }
   }
 }
 
-const fs = require('fs');
-const path = require('path');
-
 // Function to read URLs from the file and add "http://" if not present
 function getUrlsFromFile(filePath) {
   try {
-    const urls = fs.readFileSync(filePath, 'utf-8')
+    const urls = fs
+      .readFileSync(filePath, 'utf-8')
       .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .map(url => (url.startsWith('http://') || url.startsWith('https://') ? url : `http://${url}`));
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((url) => (url.startsWith('http://') || url.startsWith('https://') ? url : `http://${url}`));
     return urls;
   } catch (error) {
     console.error(`Error reading file: ${error.message}`);
@@ -377,7 +396,8 @@ function getUrlsFromFile(filePath) {
   }
 }
 
-// Main function to process URLs
+
+
 async function main() {
   const filePath = path.join(__dirname, 'urls.txt'); // Path to the file
   const urls = getUrlsFromFile(filePath);
@@ -392,14 +412,15 @@ async function main() {
   for (const url of urls) {
     console.log(`Processing URL: ${url}`);
     try {
-      await runCrawler(url); // Call the crawler for each URL
+      await runCrawler(url); // Call the crawler for each URL sequentially
     } catch (error) {
       console.error(`Error processing URL ${url}: ${error.message}`);
     }
   }
 
   console.log('Finished processing all URLs.');
+  process.exit(0);
 }
 
-
 main();
+// runCrawler('http://www.meritbank.com')
